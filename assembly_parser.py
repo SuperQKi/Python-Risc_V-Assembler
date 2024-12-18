@@ -10,14 +10,17 @@ class assemly_parser:
     symbol_table = {}
     # list register
     register_table = {}
+    # list floating ponit
+    floatingPoint_table = {}
     # tập lệnh
     instruction_table = {}
     # output file truyền vào
     output_array = []
     #khởi tạo lớp
-    def __init__(self, register_table, instruction_table):
+    def __init__(self, register_table, instruction_table, floatingPoint_table):
         self.register_table = register_table
         self.instruction_table = instruction_table
+        self.floatingPoint_table = floatingPoint_table
         self.word_size = 4
         self.current_location = 64
 
@@ -60,8 +63,153 @@ class assemly_parser:
         # lấy core instruction format của lệnh
         field_machine_code = self.instruction_table[instruction]
         args = raw_arg[:]
+
+        ######### Floating point ints ##############
+
+        if 'f' in instruction:
+
+            # lấy offset của lệnh
+            if instruction == 'flw' or instruction == 'fld' or instruction == 'fsw' or instruction == 'fsd':
+                offset = int(args[1][0:args[1].find('(')])
+                args[1] = args[1][args[1].find('(') + 1: args[1].find(')')]
+                # chuyển offset sang binary
+                if offset < 0:
+                    offset = bin((1 << 12) + offset)[2:]
+                else:
+                    offset = bin(offset)[2:].zfill(12)
+                    # đổi giá trị thanh ghi sang mã máy
+                    rd = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+                    rs1 = bin(self.register_table[args[1]])[2:].zfill(5)
+                # phân tích các lệnh load và store
+                if 's' in instruction:
+                    field_machine_code[2] = rs1
+                    field_machine_code[1] = rd
+                    field_machine_code[0] = offset[0:7]
+                    field_machine_code[4] = offset[7:]
+                else:
+                    field_machine_code[3] = rd
+                    field_machine_code[1] = rs1
+                    field_machine_code[0] = offset
+
+            elif instruction == 'fcvt.s.w' or instruction == 'fcvt.s.wu' or instruction == 'fcvt.d.w' or instruction == 'fcvt.d.wu':
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.register_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fcvt.wu.s' or instruction == 'fcvt.w.s' or instruction == 'fcvt.wu.d' or instruction == 'fcvt.w.d': 
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.register_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fmv.s.x':
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.register_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+            
+            elif instruction == 'fmv.x.s':
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.register_table[args[0]])[2:].zfill(5)
+                
+            elif instruction == 'feq.s' or instruction == 'fle.s' or instruction == 'flt.s':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.register_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'feq.d' or instruction == 'fle.d' or instruction == 'flt.d':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.register_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fclass.s' or instruction == 'fclass.d':
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.register_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fmin.s' or instruction == 'fmax.s' or instruction == 'fmin.d' or instruction == 'fmax.d':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fsgnj.s' or instruction == 'fsgnjn.s' or instruction == 'fsgnjx.s':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fsgnj.d' or instruction == 'fsgnjn.d' or instruction == 'fsgnjx.d':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fmadd.s' or instruction == 'fnmadd.s' or instruction == 'fmsub.s' or instruction == 'fnmsub.s':
+                # gán giá trị cho rs3
+                field_machine_code[0] = bin(self.floatingPoint_table[args[3]])[2:].zfill(5)
+                # gán giá trị cho rs2
+                field_machine_code[2] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[3] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[5] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fmadd.d' or instruction == 'fnmadd.d' or instruction == 'fmsub.d' or instruction == 'fnmsub.d':
+                # gán giá trị cho rs3
+                field_machine_code[0] = bin(self.floatingPoint_table[args[3]])[2:].zfill(5)
+                # gán giá trị cho rs2
+                field_machine_code[2] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[3] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[5] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fsqrt.s' or instruction == 'fsqrt.d':
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fadd.s' or instruction == 'fsub.s' or instruction == 'fmul.s' or instruction == 'fdiv.s':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+            elif instruction == 'fadd.d' or instruction == 'fsub.d' or instruction == 'fmul.d' or instruction == 'fdiv.d':
+                # gán giá trị cho rs2
+                field_machine_code[1] = bin(self.floatingPoint_table[args[2]])[2:].zfill(5)
+                # gán giá trị cho rs1
+                field_machine_code[2] = bin(self.floatingPoint_table[args[1]])[2:].zfill(5)
+                # gán giá trị chp rd
+                field_machine_code[4] = bin(self.floatingPoint_table[args[0]])[2:].zfill(5)
+
+
+            # chuyển lệnh sang mã máy   
+            machine_code = self.calculator_machine_code(field_machine_code)
+            self.output_array.append(machine_code)
+
         # lấy offset của lệnh
-        if '(' in args[1]:
+        elif '(' in args[1]:
             offset = int(args[1][0:args[1].find('(')])
             args[1] = args[1][args[1].find('(') + 1: args[1].find(')')]
             # chuyển offset sang binary
@@ -120,7 +268,6 @@ class assemly_parser:
             # chuyển lệnh sang mã máy
             machine_code = self.calculator_machine_code(field_machine_code)
             self.output_array.append(machine_code)
-
         # phân tích B-type
         elif args[2] in self.symbol_table.keys():
             offset = self.symbol_table[args[2]] - self.current_location
@@ -152,7 +299,6 @@ class assemly_parser:
             # tính mã máy của lệnh
             machine_code = self.calculator_machine_code(field_machine_code)
             self.output_array.append(machine_code)
-
         # I-type
         else:
             # trường hợp imm là số hex
@@ -187,7 +333,7 @@ class assemly_parser:
 
     def print_marchien_code_map(self):
         # in ra mã máy của tập lệnh
-        file_out = open('Machine_code.txt', 'w')
-        file_out.write('Machine Code Map\n')
+        file_out = open('D:\\python\\RiscV_Assembler\\Machine_code.txt', 'w')
+        #file_out.write('Machine Code Map\n')
         for x in self.output_array:
-            file_out.write(f'{x}\n')
+            file_out.write(f'{x}\n')v
